@@ -5,7 +5,7 @@ import pkg from "pg";
 import joi from "joi";
 import bcrypt from "bcrypt";
 import { v4 as uuidV4 } from "uuid";
-
+import { nanoid } from "nanoid";
 const app = express();
 app.use(express.json());
 app.use(cors());
@@ -29,6 +29,10 @@ const singInSchema = joi.object({
   email: joi.string().email().min(1).required(),
 });
 
+const urlSchema = joi.object({
+  url: joi.string().uri().required(),
+});
+
 app.post("/singup", async (req, res) => {
   const { name, email, password, confirmPassword } = req.body;
   const user = { name, password, email };
@@ -48,7 +52,7 @@ app.post("/singup", async (req, res) => {
       [email]
     );
     if (emailExist.rows[0]) {
-      return res.status(409).send("Email já cadastrado");
+      return res.status(409).send({ message: "Email já cadastrado" });
     }
 
     const encryptPassword = bcrypt.hashSync(password, 10);
@@ -101,6 +105,52 @@ app.post("/singin", async (req, res) => {
     );
 
     res.status(200).send(token);
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
+});
+
+app.post("/urls/shorten", async (req, res) => {
+  const { authorization } = req.headers;
+  const { url } = req.body;
+  console.log(url);
+  const validateToken = authorization?.replace("bearer ", "");
+  if (!validateToken) {
+    return res.status(401).send({ message: "Usuário sem autorização" });
+  }
+  console.log(validateToken);
+  const validateUrl = {
+    url,
+  };
+  const validation = urlSchema.validate(validateUrl, { abortEarly: false });
+  if (validation.error) {
+    const error = validation.error.details.map((d) => d.message);
+    return res.status(422).send(error);
+  }
+
+  try {
+    const urlExist = await connection.query(
+      `SELECT * FROM urls WHERE url= $1`,
+      [url]
+    );
+    if (urlExist.rows[0]) {
+      res.status(409).send({ message: "Url já existente" });
+    }
+
+    const userId = await connection.query(
+      `SELECT * FROM sessions WHERE token= $1`,
+      [validateToken]
+    );
+    console.log("userId", userId.rows[0].userId);
+    const shortUrl = nanoid(10);
+    console.log(shortUrl);
+    await connection.query(
+      `INSERT INTO urls (url, "shortUrl", "userId") VALUES ($1,$2,$3)`,
+      [url, shortUrl, userId.rows[0].userId]
+    );
+
+    res.status(201).send({ shortUrl: shortUrl });
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);
