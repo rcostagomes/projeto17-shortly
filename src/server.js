@@ -163,19 +163,46 @@ app.get("/urls/:id", async (req, res) => {
     const idExist = await connection.query(`SELECT * FROM urls WHERE id=$1`, [
       id,
     ]);
-    if(!idExist.rows[0]){
-      return res.status(404).send({message:"Id não encontrado"})
+    if (!idExist.rows[0]) {
+      return res.status(404).send({ message: "Id não encontrado" });
     }
-    console.log(idExist.rows)
-    
-    const getUrls = {
-    "id": idExist.rows[0].id,
-    "shortUrl": idExist.rows[0].shortUrl,
-    "url": idExist.rows[0].url
-    }
-     console.log(getUrls)
+    console.log(idExist.rows);
 
-     res.status(200).send(getUrls)
+    const getUrls = {
+      id: idExist.rows[0].id,
+      shortUrl: idExist.rows[0].shortUrl,
+      url: idExist.rows[0].url,
+    };
+    console.log(getUrls);
+
+    res.status(200).send(getUrls);
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
+});
+
+app.get("/urls/open/:shortUrl", async (req, res) => {
+  const { shortUrl } = req.params;
+
+  if (!shortUrl) {
+    res.status(404).send({ message: "Insira a shortUrl" });
+  }
+
+  try {
+    const shortUrlExist = await connection.query(
+      `SELECT * FROM urls WHERE "shortUrl"=$1`,
+      [shortUrl]
+    );
+
+    if (!shortUrlExist.rows[0]) {
+      res.status(404).send({ message: "ShortUrl não encontrada" });
+    }
+
+    await connection.query(`UPDATE urls SET "visitCount" = "visitCount" + 1 WHERE "shortUrl" =$1`,[shortUrl])
+    console.log(shortUrlExist.rows[0].url)
+
+    res.redirect(shortUrlExist.rows[0].url);
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);
