@@ -1,121 +1,27 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
-import pkg from "pg";
 import joi from "joi";
-import bcrypt from "bcrypt";
-import { v4 as uuidV4 } from "uuid";
 import { nanoid } from "nanoid";
+import connection from "./db.js";
+import authRouters from "../routers/authRouters.js"
 const app = express();
 app.use(express.json());
 app.use(cors());
-dotenv.config();
 
 const port = process.env.PORT || 4000;
-const { Pool } = pkg;
 
-const connection = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const singUpSchema = joi.object({
-  name: joi.string().min(1).required(),
-  password: joi.string().min(1).required(),
-  email: joi.string().email().min(1).required(),
-});
-
-const singInSchema = joi.object({
-  password: joi.string().min(1).required(),
-  email: joi.string().email().min(1).required(),
-});
 
 const urlSchema = joi.object({
   url: joi.string().uri().required(),
 });
 
-app.post("/singup", async (req, res) => {
-  const { name, email, password, confirmPassword } = req.body;
-  const user = { name, password, email };
-
-  if (password !== confirmPassword) {
-    res.status(422).send({ message: "Senhas não correspondentes" });
-  }
-
-  const validation = singUpSchema.validate(user, { abortEarly: false });
-  if (validation.error) {
-    const error = validation.error.details.map((d) => d.message);
-    return res.status(422).send(error);
-  }
-  try {
-    const emailExist = await connection.query(
-      `SELECT email FROM users WHERE email=$1`,
-      [email]
-    );
-    if (emailExist.rows[0]) {
-      return res.status(409).send({ message: "Email já cadastrado" });
-    }
-
-    const encryptPassword = bcrypt.hashSync(password, 10);
-
-    await connection.query(
-      `INSERT INTO users (name,email,password) VALUES ($1,$2,$3)`,
-      [name, email, encryptPassword]
-    );
-
-    res.status(201).send({ message: "Usuário Cadastrado" });
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-});
-
-app.post("/singin", async (req, res) => {
-  const { email, password } = req.body;
-
-  const user = {
-    email,
-    password,
-  };
-  const validation = singInSchema.validate(user, { abortEarly: false });
-  if (validation.error) {
-    const error = validation.error.details.map((d) => d.message);
-    return res.status(422).send(error);
-  }
-  try {
-    const emailExist = await connection.query(
-      `SELECT * FROM users WHERE email = $1`,
-      [email]
-    );
-
-    console.log(emailExist.rows[0].password);
-    const validatePassword = bcrypt.compareSync(
-      password,
-      emailExist.rows[0].password
-    );
-
-    if (!emailExist.rows[0] || !validatePassword) {
-      return res.status(401).send({ message: "Dados Invalidos" });
-    }
-
-    console.log(emailExist.rows[0].id);
-    const token = uuidV4();
-    await connection.query(
-      `INSERT INTO sessions (token, "userId") VALUES ($1,$2)`,
-      [token, emailExist.rows[0].id]
-    );
-
-    res.status(200).send(token);
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-});
+app.use(authRouters)
 
 app.post("/urls/shorten", async (req, res) => {
   const { authorization } = req.headers;
   const { url } = req.body;
   console.log(url);
-  const validateToken = authorization?.replace("bearer ", "");
+  const validateToken = authorization?.replace("Bearer ", "");
   if (!validateToken) {
     return res.status(401).send({ message: "Usuário sem autorização" });
   }
@@ -204,8 +110,8 @@ app.get("/urls/open/:shortUrl", async (req, res) => {
       [shortUrl]
     );
     console.log(shortUrlExist.rows[0].url);
-
-    res.redirect(shortUrlExist.rows[0].url);
+    const link = shortUrlExist.rows[0].url;
+    res.redirect(link);
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);
@@ -216,7 +122,7 @@ app.delete("/urls/:id", async (req, res) => {
   const { id } = req.params;
   const { authorization } = req.headers;
 
-  const validateToken = authorization?.replace("bearer ", "");
+  const validateToken = authorization?.replace("Bearer ", "");
   if (!validateToken) {
     return res.status(401).send({ message: "Usuário sem autorização" });
   }
@@ -243,9 +149,59 @@ app.delete("/urls/:id", async (req, res) => {
         .send({ message: "Token incompativel com usuário" });
     }
 
-     await connection.query(`DELETE FROM urls WHERE id= $1`, [id]);
+    await connection.query(`DELETE FROM urls WHERE id= $1`, [id]);
 
     res.sendStatus(204);
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
+});
+
+app.get("/users/me", async (req, res) => {
+  const { authorization } = req.headers;
+  const validateToken = authorization?.replace("Bearer ", "");
+  console.log(validateToken);
+  if (!validateToken) {
+    return res.status(401).send({ message: "Usuário sem autorização" });
+  }
+  try {
+    const userId = await connection.query(
+      `SELECT * FROM sessions WHERE token= $1`,
+      [validateToken]
+    );
+
+    const userInfos = await connection.query(
+      `SELECT * FROM users WHERE id = $1`,
+      [userId.rows[0].userId]
+    );
+
+    const tableUrls = await connection.query(
+      `SELECT * FROM urls WHERE "userId" =$1`,
+      [userId.rows[0].userId]
+    );
+
+    if (!userId || !userInfos || !tableUrls) {
+      return res.status(404).send({ message: "dados invalidos" });
+    }
+    console.log(tableUrls.rows);
+
+    let visitCount = 0;
+    tableUrls.rows.map((rows) => {
+      console.log("visitCount", rows.visitCount);
+      for (let i = 0; i < rows.visitCount; i++) {
+        visitCount++;
+      }
+    });
+    const me = {
+      id: userInfos.rows[0].id,
+      name: userInfos.rows[0].name,
+      visitCount: visitCount,
+      shortenedUrls: tableUrls.rows,
+    };
+    console.log(me);
+    console.log(visitCount);
+    res.status(200).send(me);
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);
