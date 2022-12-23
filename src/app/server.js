@@ -16,30 +16,6 @@ app.use(authRouters)
 
 app.use(urlRouters)
 
-app.get("/urls/:id", async (req, res) => {
-  const { id } = req.params;
-  try {
-    const idExist = await connection.query(`SELECT * FROM urls WHERE id=$1`, [
-      id,
-    ]);
-    if (!idExist.rows[0]) {
-      return res.status(404).send({ message: "Id não encontrado" });
-    }
-    console.log(idExist.rows);
-
-    const getUrls = {
-      id: idExist.rows[0].id,
-      shortUrl: idExist.rows[0].shortUrl,
-      url: idExist.rows[0].url,
-    };
-    console.log(getUrls);
-
-    res.status(200).send(getUrls);
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-});
 
 app.get("/urls/open/:shortUrl", async (req, res) => {
   const { shortUrl } = req.params;
