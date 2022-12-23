@@ -17,50 +17,6 @@ app.use(authRouters)
 app.use(urlRouters)
 
 
-app.get("/urls/open/:shortUrl", async (req, res) => {
-  
-});
-
-app.delete("/urls/:id", async (req, res) => {
-  const { id } = req.params;
-  const { authorization } = req.headers;
-
-  const validateToken = authorization?.replace("Bearer ", "");
-  if (!validateToken) {
-    return res.status(401).send({ message: "Usuário sem autorização" });
-  }
-  try {
-    const userById = await connection.query(`SELECT * FROM urls WHERE id=$1`, [
-      id,
-    ]);
-    const userByToken = await connection.query(
-      `SELECT * FROM sessions  WHERE token = $1`,
-      [validateToken]
-    );
-
-    if (!userById.rows[0]) {
-      return res.status(404).send({ message: "Url não encontrada" });
-    }
-    if (!userByToken.rows[0]) {
-      return res.status(404).send({ message: "Token invalido" });
-    }
-    console.log(userByToken.rows[0].userId);
-    console.log(userById.rows[0].userId);
-    if (userById.rows[0].userId !== userByToken.rows[0].userId) {
-      return res
-        .status(401)
-        .send({ message: "Token incompativel com usuário" });
-    }
-
-    await connection.query(`DELETE FROM urls WHERE id= $1`, [id]);
-
-    res.sendStatus(204);
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-});
-
 app.get("/users/me", async (req, res) => {
   const { authorization } = req.headers;
   const validateToken = authorization?.replace("Bearer ", "");
