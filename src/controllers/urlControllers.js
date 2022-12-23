@@ -63,3 +63,33 @@ export async function getUrls(req,res){
     return res.sendStatus(500);
   }
 }
+
+export async function OpenShortUrl(req,res){
+    const { shortUrl } = req.params;
+
+  if (!shortUrl) {
+    res.status(404).send({ message: "Insira a shortUrl" });
+  }
+
+  try {
+    const shortUrlExist = await connection.query(
+      `SELECT * FROM urls WHERE "shortUrl"=$1`,
+      [shortUrl]
+    );
+
+    if (!shortUrlExist.rows[0]) {
+      res.status(404).send({ message: "ShortUrl não encontrada" });
+    }
+
+    await connection.query(
+      `UPDATE urls SET "visitCount" = "visitCount" + 1 WHERE "shortUrl" =$1`,
+      [shortUrl]
+    );
+    console.log(shortUrlExist.rows[0].url);
+    const link = shortUrlExist.rows[0].url;
+    res.redirect(link);
+  } catch (err) {
+    console.log(err);
+    return res.sendStatus(500);
+  }
+}
