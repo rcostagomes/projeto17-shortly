@@ -1,9 +1,8 @@
 import express from "express";
 import cors from "cors";
-import joi from "joi";
-import { nanoid } from "nanoid";
 import connection from "./db.js";
 import authRouters from "../routers/authRouters.js"
+import urlRouters from "../routers/urlRouters.js"
 const app = express();
 app.use(express.json());
 app.use(cors());
@@ -11,57 +10,11 @@ app.use(cors());
 const port = process.env.PORT || 4000;
 
 
-const urlSchema = joi.object({
-  url: joi.string().uri().required(),
-});
+
 
 app.use(authRouters)
 
-app.post("/urls/shorten", async (req, res) => {
-  const { authorization } = req.headers;
-  const { url } = req.body;
-  console.log(url);
-  const validateToken = authorization?.replace("Bearer ", "");
-  if (!validateToken) {
-    return res.status(401).send({ message: "Usuário sem autorização" });
-  }
-  console.log(validateToken);
-  const validateUrl = {
-    url,
-  };
-  const validation = urlSchema.validate(validateUrl, { abortEarly: false });
-  if (validation.error) {
-    const error = validation.error.details.map((d) => d.message);
-    return res.status(422).send(error);
-  }
-
-  try {
-    const urlExist = await connection.query(
-      `SELECT * FROM urls WHERE url= $1`,
-      [url]
-    );
-    if (urlExist.rows[0]) {
-      res.status(409).send({ message: "Url já existente" });
-    }
-
-    const userId = await connection.query(
-      `SELECT * FROM sessions WHERE token= $1`,
-      [validateToken]
-    );
-    console.log("userId", userId.rows[0].userId);
-    const shortUrl = nanoid(10);
-    console.log(shortUrl);
-    await connection.query(
-      `INSERT INTO urls (url, "shortUrl", "userId") VALUES ($1,$2,$3)`,
-      [url, shortUrl, userId.rows[0].userId]
-    );
-
-    res.status(201).send({ shortUrl: shortUrl });
-  } catch (err) {
-    console.log(err);
-    return res.sendStatus(500);
-  }
-});
+app.use(urlRouters)
 
 app.get("/urls/:id", async (req, res) => {
   const { id } = req.params;
