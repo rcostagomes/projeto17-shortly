@@ -1,11 +1,11 @@
-import connection from "../app/db.js";
+import connection from "../db.js";
 import { singInSchema, singUpSchema } from "../schemas/authSchemas.js";
 
-export async function validateSingUp(req,res,next){
-const { email} = req.body;
-const user = req.body
+export async function validateSingUp(req, res, next) {
+  const { email } = req.body;
+  const user = req.body;
 
-const validation = singUpSchema.validate(user, { abortEarly: false });
+  const validation = singUpSchema.validate(user, { abortEarly: false });
   if (validation.error) {
     const error = validation.error.details.map((d) => d.message);
     return res.status(422).send(error);
@@ -19,16 +19,15 @@ const validation = singUpSchema.validate(user, { abortEarly: false });
     if (emailExist.rows[0]) {
       return res.status(409).send({ message: "Email já cadastrado" });
     }
-  }catch (err) {
+  } catch (err) {
     console.log(err);
     return res.sendStatus(500);
   }
 
-next();
+  next();
+}
 
-} 
-
-export async function validateSingIn(req,res,next){
+export async function validateSingIn(req, res, next) {
   const user = req.body;
 
   const validation = singInSchema.validate(user, { abortEarly: false });

@@ -1,4 +1,4 @@
-import connection from "../app/db.js";
+import connection from "../db.js";
 
 export async function userMe(req, res) {
   const { authorization } = req.headers;
@@ -45,5 +45,23 @@ export async function userMe(req, res) {
   } catch (err) {
     console.log(err);
     return res.sendStatus(500);
+  }
+}
+
+export async function getRanking(req, res) {
+  try {
+    const getRanking = await connection.query(`
+        SELECT users.id, users.name, COUNT(urls."shortUrl") AS "linksCount", SUM(urls."visitCount") AS "visitCount"
+    FROM users LEFT JOIN urls 
+    ON users.id = urls."userId" 
+    GROUP BY users.id ORDER BY "visitCount" DESC
+    LIMIT 10;
+        `);
+
+    const rankingList = getRanking.rows.reverse();
+    res.status(200).send(rankingList);
+  } catch (err) {
+    console.log(err);
+    res.sendStatus(500);
   }
 }

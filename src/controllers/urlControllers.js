@@ -1,4 +1,4 @@
-import connection from "../app/db.js";
+import connection from "../db.js";
 import { nanoid } from "nanoid";
 
 export async function urls(req, res) {
@@ -98,11 +98,11 @@ export async function deleteUrl(req, res) {
   const { authorization } = req.headers;
 
   const validateToken = authorization?.replace("Bearer ", "");
-  
+
   if (!validateToken) {
     return res.status(401).send({ message: "Usuário sem autorização" });
   }
-  console.log(validateToken)
+  console.log(validateToken);
   try {
     const userById = await connection.query(`SELECT * FROM urls WHERE id=$1`, [
       id,
